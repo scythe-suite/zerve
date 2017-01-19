@@ -1,0 +1,43 @@
+#!/bin/bash -e
+
+echocol() { echo -e "\033[31m$@...\033[0m " >&2; }
+
+if [ "$1" != "-v" ]; then
+    exec >/dev/null
+else
+    shift || true # needed because of -e
+fi
+documentroot="$1"
+if [ ! -r "$documentroot" ] && [ ! -d "$documentroot" ]; then
+    echo "make_zerve: please specify the documentroot to include"
+    exit 1
+fi
+
+echocol "Setup dirs"
+
+tempdir=$(mktemp -d /tmp/zerve-XXXXXXXXX) || exit 1
+
+mkdir -p $tempdir/dist
+
+echocol "Copying source files to dist"
+
+cp -rv ./src/{__main__.py,} $tempdir/dist
+
+echocol "Compiling and removing source files"
+
+( cd $tempdir/dist; python -m compileall . )
+find $tempdir/dist -name \*.py -exec rm {} \;
+
+echocol "Adding the document root"
+
+cp -rv $documentroot/ $tempdir/dist/documentroot
+
+echocol "Preparing zip file"
+
+rm -f $(pwd)/zerve
+( cd $tempdir/dist && zip -9r $tempdir/zerve.zip . )
+echo '#!/usr/bin/env python' > $(pwd)/zerve
+cat $tempdir/zerve.zip >> $(pwd)/zerve
+chmod u+rx $(pwd)/zerve
+
+rm -rf $tempdir
