@@ -72,7 +72,7 @@ def main():
 
     zhm = ZipHandlerMaker()
     for pp in args.extra_files:
-        path, fs_path = pp.split(':') if ':' in pp else (path, None)
+        path, fs_path = pp.split(':') if ':' in pp else (pp, None)
         zhm.add_file(path, fs_path)
     server = HTTPServer(('', int(args.port)), zhm)
     browser_thread = None
