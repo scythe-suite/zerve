@@ -33,7 +33,6 @@ class ZipHandler(BaseHTTPRequestHandler):
         BaseHTTPRequestHandler.__init__(self, *other)
 
     def do_GET(self):
-        print 'ZipHandler.do_GET'
         path = self.path
         if path.endswith('/'):
             path += 'index.html'
@@ -55,21 +54,20 @@ class ZipHandler(BaseHTTPRequestHandler):
         if content_encoding:
             self.send_header('Content-Encoding', content_encoding)
         self.send_header('Content-Length', len(content))
+        self.send_header('Connection:', 'close')
         self.end_headers()
         self.wfile.write(content)
 
 def start_browser(server_ready_event, url):
-    print "[Browser Thread] Waiting for server to start"
     server_ready_event.wait()
-    print "[Browser Thread] Opening browser"
     webbrowser.open(url)
 
 def main():
 
     parser = ArgumentParser(prog='zhs')
     parser.add_argument('--port', '-p', help = 'The port the server will listen to.', default = 8000)
-    parser.add_argument('--no-broswer', '-n', help = 'If present, no browser window will be opened.')
-    parser.add_argument('extra_files', help = 'A path:fs_path map of additional files to serve.', nargs = REMAINDER)
+    parser.add_argument('--no-broswer', '-n', default = False, action = 'store_true', help = 'If present, no browser window will be opened.')
+    parser.add_argument('extra_files', help = 'A list of path[:fs_path] specification of additional files to serve.', nargs = REMAINDER)
     args = parser.parse_args()
 
     zhm = ZipHandlerMaker()
@@ -77,16 +75,19 @@ def main():
         path, fs_path = pp.split(':') if ':' in pp else (path, None)
         zhm.add_file(path, fs_path)
     server = HTTPServer(('', int(args.port)), zhm)
-    server_ready = threading.Event()
-    browser_thread = threading.Thread(target = start_browser, args = (server_ready, 'http://localhost:{}/'.format(args.port)))
-    browser_thread.start()
-    server_ready.set()
-    print 'Starting httpserver on port {}, press ^C sto stop...'.format(args.port)
+    browser_thread = None
+    if not args.no_broswer:
+        server_ready = threading.Event()
+        browser_thread = threading.Thread(target = start_browser, args = (server_ready, 'http://localhost:{}/'.format(args.port)))
+        browser_thread.start()
+        server_ready.set()
+    print 'Starting server on port {}, press ^C sto stop...'.format(args.port)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print '^C received, shutting down the web server!'
-        server.socket.close()
-        browser_thread.join()
+        print 'Shutting down the web server!'
+    finally:
+        server.shutdown()
+        if browser_thread: browser_thread.join()
 
 main()
